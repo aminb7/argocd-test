@@ -1,0 +1,137 @@
+replicaCount: 3
+
+image:
+  registry: docker.io
+  repository: bitnami/rabbitmq
+  tag: latest
+  debug: false
+  pullPolicy: IfNotPresent
+
+auth:
+  username: guest
+  password: guest
+  erlangCookie: zg8MEoWUapdMTeNuPwZYH441wk7jVdli
+
+resources:
+  limits:
+    cpu: 2
+    memory: 2000Mi
+  requests:
+    cpu: 2
+    memory: 2000Mi
+
+initContainer: {}
+
+maxAvailableSchedulers: 2
+onlineSchedulers: 2
+
+ulimitNofiles: '65535'
+
+memoryHighWatermark:
+  enabled: true
+  type: relative
+  value: 0.45
+
+persistence:
+  enabled: false
+
+podAnnotations:
+  security.alpha.kubernetes.io/unsafe-sysctls: "net.core.somaxconn=65535"
+
+podSecurityContext:
+  enabled: false
+#  sysctls:
+#    - name: "net.core.somaxconn"
+#      value: "65535"
+#    - name: "net.ipv4.ip_local_port_range"
+#      value: "15000 60999"
+
+metrics:
+  enabled: true
+
+clustering:
+  enabled: true
+  addressType: hostname
+  rebalance: true
+
+extraConfiguration: |-
+  # default_vhost = {{ .Values.defaultVHost }}
+  prometheus.return_per_object_metrics = true
+  tcp_listen_options.backlog = 4096
+  collect_statistics_interval = 10000
+  collect_statistics = coarse
+  num_acceptors.tcp = 20
+  log.file.level = info
+  heartbeat = 10
+  mirroring_sync_batch_size = 1024
+  load_definitions = /app/load_definition.json
+
+loadDefinition:
+  enabled: true
+  existingSecret: load-definition-murche
+extraSecretsPrependReleaseName: false
+extraSecrets:
+  load-definition-murche:
+    load_definition.json: |-
+      {
+        "vhosts": [
+          {
+            "name": {{ .Values.defaultVHost | quote }}
+          }
+        ],
+        "policies": [
+          {
+            "apply-to": "queues",
+            "definition": {
+              "ha-mode": "exactly",
+              "ha-params": 2,
+              "ha-sync-mode": "automatic",
+              "queue-master-locator": "min-masters"
+            },
+            "name": "mirrored-queue-master-policy",
+            "pattern": ".*",
+            "priority": 0,
+            "vhost": {{ .Values.defaultVHost | quote }}
+          }
+        ],
+        "users": [
+          {
+            "name": {{ .Values.auth.username | quote }},
+            "password": {{ .Values.auth.password | quote }},
+            "tags": "administrator"
+          },
+          {
+            "name": {{ .Values.management.username | quote }},
+            "password": {{ .Values.management.password | quote }},
+            "tags": "management"
+          },
+          {
+            "name": {{ .Values.monitoring.username | quote }},
+            "password": {{ .Values.monitoring.password | quote }},
+            "tags": "monitoring"
+          }
+        ],
+        "permissions": [
+          {
+            "user": {{ .Values.auth.username | quote }},
+            "vhost": {{ .Values.defaultVHost | quote }},
+            "configure": ".*",
+            "read": ".*",
+            "write": ".*"
+          },
+          {
+            "user": {{ .Values.management.username | quote }},
+            "vhost": {{ .Values.defaultVHost | quote }},
+            "configure": ".*",
+            "read": ".*",
+            "write": ".*"
+          },
+          {
+            "user": {{ .Values.monitoring.username | quote }},
+            "vhost": {{ .Values.defaultVHost | quote }},
+            "configure": "",
+            "read": ".*",
+            "write": ""
+          }
+        ]
+      }
